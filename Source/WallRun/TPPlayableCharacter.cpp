@@ -65,16 +65,15 @@ void ATPPlayableCharacter::OnWallJumped(UPrimitiveComponent* HitComponent, AActo
 	{
 		DrawDebugDirectionalArrow(GetWorld(), Hit.ImpactPoint, Hit.ImpactPoint + Hit.ImpactNormal * 30.f, 4.f, FColor::Yellow, false, 10.f, 0, 1.f);
 
-		if (!(Hit.Actor->ActorHasTag("Wall")))
+		// If the player, while wall running, runs into anything else besides the current wall, stop wall running.
+		if (bIsRunningOnWall && (Hit.Actor != CurrentWallInfo.Wall))
 		{
 			EndWallRun();
 			return;
 		}
 
-		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() /*&& IsMovingForward()*/)
+		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Hit.Actor->ActorHasTag("Wall"))
 		{
-			UE_LOG(LogTemp, Log, TEXT("Preliminary Conditions: SUCCESS!"));
-
 			// For now, we assume the angle is less than 90 and always facing at the wall.
 			const auto FacingAngle = GetActorForwardVector() | Hit.ImpactNormal;
 			if (FacingAngle < 0 && FacingAngle >= -0.985f) // We set -0.95 so that we don't wall run when facing directly at the wall.
@@ -88,6 +87,7 @@ void ATPPlayableCharacter::OnWallJumped(UPrimitiveComponent* HitComponent, AActo
 				CurrentWallInfo.WallNormal = Hit.ImpactNormal.GetSafeNormal();
 
 				DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + RunningDir * 100.f, 10.f, FColor::Magenta, false, 30.f, 0, 2.f);
+
 				BeginWallRun();
 			}
 		}
@@ -200,31 +200,25 @@ void ATPPlayableCharacter::TickWallRunning()
 	FHitResult WallTestResult;
 	GetWorld()->LineTraceSingleByChannel(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams);
 
-	if (WallTestResult.bBlockingHit && WallTestResult.Actor.IsValid() && WallTestResult.Actor->ActorHasTag("Wall"))
+	// We must check if the player's still touching the same wall.
+	// If it no longer touches the wall, the player stops wall running.
+	if (WallTestResult.bBlockingHit && WallTestResult.Actor.IsValid() && WallTestResult.Actor->ActorHasTag("Wall")
+		&& (WallTestResult.Actor == CurrentWallInfo.Wall))
 	{
-		UE_LOG(LogTemp, Log, TEXT("TickWallRunning(): We hit a wall!"));
+		UE_LOG(LogTemp, Log, TEXT("Update: %s is still touching the same wall %s"), *GetName(), *(CurrentWallInfo.Wall->GetName()));
 
-		// Here the player didn't press to jump.
-		if (WallTestResult.Actor == CurrentWallInfo.Wall)
-		{
-			GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
-			GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
-			UE_LOG(LogTemp, Log, TEXT("TickWallRunning(): This wall is the same as before!"));
-		}
-		else
-		{
-			UE_LOG(LogTemp, Log, TEXT("TickWallRunning(): This wall is different now!"));
-		}
+		GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
+		GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
 	}
 	else
 	{
-		UE_LOG(LogTemp, Log, TEXT("TickWallRunning(): We hit nadda."));
+		UE_LOG(LogTemp, Log, TEXT("Update: We hit something else besides wall %s"), *(CurrentWallInfo.Wall->GetName()));
 		EndWallRun();
 	}
 }
 
 void ATPPlayableCharacter::EnableGravity()
 {
-	UE_LOG(LogTemp, Log, TEXT("Enable Gravity"));
+	UE_LOG(LogTemp, Log, TEXT("Enable 25% Gravity"));
 	GetCharacterMovement()->GravityScale = 0.25f;
 }
