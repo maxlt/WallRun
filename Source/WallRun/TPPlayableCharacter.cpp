@@ -38,7 +38,7 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	bUseControllerRotationYaw = false;
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
-	GetCharacterMovement()->JumpZVelocity = 800.f;
+	GetCharacterMovement()->JumpZVelocity = 600.f;
 
 	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &ATPPlayableCharacter::OnWallJumped);
 
