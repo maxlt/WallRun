@@ -65,18 +65,21 @@ void ATPPlayableCharacter::OnWallJumped(UPrimitiveComponent* HitComponent, AActo
 	{
 		DrawDebugDirectionalArrow(GetWorld(), Hit.ImpactPoint, Hit.ImpactPoint + Hit.ImpactNormal * 30.f, 4.f, FColor::Yellow, false, 10.f, 0, 1.f);
 
-		// If the player, while wall running, runs into anything else besides the current wall, stop wall running.
 		if (bIsRunningOnWall && (Hit.Actor != CurrentWallInfo.Wall))
 		{
+			// If the character, while wall running, runs into anything else besides the current wall, stop wall running.
 			EndWallRun();
 			return;
 		}
 
+		// When the character makes a jump from the ground towards a wall.
 		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Hit.Actor->ActorHasTag("Wall"))
 		{
+			// TODO We should parameterise the facing angle.
 			// For now, we assume the angle is less than 90 and always facing at the wall.
 			const auto FacingAngle = GetActorForwardVector() | Hit.ImpactNormal;
-			if (FacingAngle < 0 && FacingAngle >= -0.985f) // We set -0.95 so that we don't wall run when facing directly at the wall.
+			// We set -0.985 so that we don't go wall running when the character faces directly straight at the wall.
+			if (FacingAngle < 0 && FacingAngle >= -0.985f)
 			{
 				UE_LOG(LogTemp, Log, TEXT("We begin Wall Running."));
 
@@ -141,6 +144,7 @@ void ATPPlayableCharacter::BeginJump()
 {
 	if (bIsRunningOnWall)
 	{
+		// TODO We should parameterise the angles of the launch direction.
 		const auto XYPlane = (CurrentRunDirection * 0.25f + CurrentWallInfo.WallNormal).GetSafeNormal();
 		const auto ZElevation = GetActorUpVector() * GetCharacterMovement()->JumpZVelocity * 0.6f;
 		const auto LaunchVelocity = XYPlane * GetCharacterMovement()->GetMaxSpeed() + ZElevation;
@@ -165,6 +169,7 @@ bool ATPPlayableCharacter::IsMovingForward() const
 
 void ATPPlayableCharacter::BeginWallRun()
 {
+	// TODO We should also freeze the player's camera view and position it behind the character.
 	GetCharacterMovement()->GravityScale = 0.f;
 	GetCharacterMovement()->Velocity.Z = 0.f;
 
@@ -175,7 +180,11 @@ void ATPPlayableCharacter::BeginWallRun()
 
 	SetActorRotation(FRotationMatrix::MakeFromX(CurrentRunDirection).Rotator());
 
-	GetWorldTimerManager().SetTimer(RunningTimer, this, &ATPPlayableCharacter::EnableGravity, 1.5f);
+	GetWorldTimerManager().SetTimer(RunningTimer, [this]()->void
+	{
+		UE_LOG(LogTemp, Log, TEXT("Enable 25%% Gravity"));
+		GetCharacterMovement()->GravityScale = 0.25f;
+	}, 1.5f, false);
 }
 
 void ATPPlayableCharacter::EndWallRun()
@@ -185,40 +194,37 @@ void ATPPlayableCharacter::EndWallRun()
 	bIsRunningOnWall = false;
 	CurrentWallInfo.Clear();
 
+	// TODO We should unfreeze the player's camera.
 	GetController()->SetIgnoreMoveInput(false);
 	GetWorldTimerManager().ClearTimer(RunningTimer);
 }
 
 void ATPPlayableCharacter::TickWallRunning()
 {
-	const float Scale = GetCapsuleComponent()->GetUnscaledCapsuleRadius() + 2.f;
-	const FVector TraceLineEnd = GetActorLocation() - CurrentWallInfo.WallNormal * Scale;
-
-	FCollisionQueryParams CollParams;
-	CollParams.AddIgnoredActor(this);
-
-	FHitResult WallTestResult;
-	GetWorld()->LineTraceSingleByChannel(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams);
-
-	// We must check if the player's still touching the same wall.
-	// If it no longer touches the wall, the player stops wall running.
-	if (WallTestResult.bBlockingHit && WallTestResult.Actor.IsValid() && WallTestResult.Actor->ActorHasTag("Wall")
-		&& (WallTestResult.Actor == CurrentWallInfo.Wall))
+	// We check if the character's still "touching" the same wall.
+	// If it no longer does, stop wall running.
+	if (CurrentWallInfo.Wall.IsValid())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Update: %s is still touching the same wall %s"), *GetName(), *(CurrentWallInfo.Wall->GetName()));
+		const float Scale = GetCapsuleComponent()->GetUnscaledCapsuleRadius() + 2.f;
+		const FVector TraceLineEnd = GetActorLocation() - CurrentWallInfo.WallNormal * Scale;
+		
+		FCollisionQueryParams CollParams;
+		CollParams.AddIgnoredActor(this);
 
-		GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
-		GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("Update: We hit something else besides wall %s"), *(CurrentWallInfo.Wall->GetName()));
-		EndWallRun();
-	}
-}
+		FHitResult WallTestResult;
+		
+		if (CurrentWallInfo.Wall->ActorLineTraceSingle(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams)
+			&& (WallTestResult.Actor == CurrentWallInfo.Wall))
+		{
+			UE_LOG(LogTemp, Log, TEXT("Update: %s is still touching the same wall %s"), *GetName(), *(CurrentWallInfo.Wall->GetName()));
 
-void ATPPlayableCharacter::EnableGravity()
-{
-	UE_LOG(LogTemp, Log, TEXT("Enable 25% Gravity"));
-	GetCharacterMovement()->GravityScale = 0.25f;
+			GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
+			GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("Update: We hit something else besides wall %s"), *(CurrentWallInfo.Wall->GetName()));
+			EndWallRun();
+		}
+	}
 }
