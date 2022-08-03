@@ -8,14 +8,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 
-namespace
-{
-	bool WallIsRunnable(const AActor& Wall)
-	{
-		return Wall.ActorHasTag("Wall");
-	}
-}
-
 // Sets default values
 ATPPlayableCharacter::ATPPlayableCharacter()
 {
@@ -40,8 +32,6 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->JumpZVelocity = 600.f;
 
-	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &ATPPlayableCharacter::OnWallJumped);
-
 	bIsRunningOnWall = false;
 	ForwardInputAxis = 0.f;
 
@@ -57,9 +47,10 @@ void ATPPlayableCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &ATPPlayableCharacter::OnCollided);
 }
 
-void ATPPlayableCharacter::OnWallJumped(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	if (Hit.bBlockingHit && Hit.Actor.IsValid())
 	{
@@ -72,14 +63,16 @@ void ATPPlayableCharacter::OnWallJumped(UPrimitiveComponent* HitComponent, AActo
 			return;
 		}
 
-		// When the character makes a jump from the ground towards a wall.
-		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Hit.Actor->ActorHasTag("Wall"))
+		// When the character made a jump from the ground towards a wall.
+		// TODO Use a better method than using a "Wall" tag.
+ 		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Hit.Actor->ActorHasTag("Wall"))
 		{
-			// TODO We should parameterise the facing angle.
-			// For now, we assume the angle is less than 90 and always facing at the wall.
-			const auto FacingAngle = GetActorForwardVector() | Hit.ImpactNormal;
-			// We set -0.985 so that we don't go wall running when the character faces directly straight at the wall.
-			if (FacingAngle < 0 && FacingAngle >= -0.985f)
+			const auto FacingAngle = GetActorForwardVector() | -Hit.ImpactNormal;
+			UE_LOG(LogTemp, Log, TEXT("Facing Angle From Wall Normal = %f"), FMath::RadiansToDegrees(FMath::Acos(FacingAngle)));
+			const auto MaxDotProduct = FMath::Cos(FMath::DegreesToRadians(MinFacingAngle));
+			const auto MinDotProduct = FMath::Cos(FMath::DegreesToRadians(MaxFacingAngle));
+			// Be careful with the following inequalities. Due to the inversion of cosine, you wouldn't want to mess with the conditional. 
+			if (FacingAngle > MinDotProduct && FacingAngle < MaxDotProduct)
 			{
 				UE_LOG(LogTemp, Log, TEXT("We begin Wall Running."));
 
@@ -216,7 +209,7 @@ void ATPPlayableCharacter::TickWallRunning()
 		if (CurrentWallInfo.Wall->ActorLineTraceSingle(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams)
 			&& (WallTestResult.Actor == CurrentWallInfo.Wall))
 		{
-			UE_LOG(LogTemp, Log, TEXT("Update: %s is still touching the same wall %s"), *GetName(), *(CurrentWallInfo.Wall->GetName()));
+			// UE_LOG(LogTemp, Log, TEXT("Update: %s is still touching the same wall %s"), *GetName(), *(CurrentWallInfo.Wall->GetName()));
 
 			GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
 			GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();

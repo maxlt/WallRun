@@ -48,7 +48,7 @@ protected:
 	virtual void BeginPlay() override;
 
 	UFUNCTION()
-		void OnWallJumped(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
+	void OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 public:
 	// Called every frame
@@ -71,7 +71,6 @@ private:
 
 	// Checks whether the wall is still present while wall running, or stamina runs out, etc.
 	void TickWallRunning();
-	void EnableGravity();
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Running (C++)", meta = (AllowPrivateAccess="true"))
