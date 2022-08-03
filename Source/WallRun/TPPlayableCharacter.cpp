@@ -166,12 +166,15 @@ void ATPPlayableCharacter::BeginWallRun()
 	GetCharacterMovement()->GravityScale = 0.f;
 	GetCharacterMovement()->Velocity.Z = 0.f;
 
+	SetActorRotation(FRotationMatrix::MakeFromX(CurrentRunDirection).Rotator());
+	SpringArm->bUsePawnControlRotation = false; // "Decouple" the spring arm from the controller.
+	SpringArm->SetUsingAbsoluteRotation(false); // We want the spring arm to use its component's relative rotation.
+	
 	bIsRunningOnWall = true;
 
 	GetController()->SetIgnoreMoveInput(true);
 	ConsumeMovementInputVector();
 
-	SetActorRotation(FRotationMatrix::MakeFromX(CurrentRunDirection).Rotator());
 
 	GetWorldTimerManager().SetTimer(RunningTimer, [this]()->void
 	{
@@ -183,6 +186,11 @@ void ATPPlayableCharacter::BeginWallRun()
 void ATPPlayableCharacter::EndWallRun()
 {
 	GetCharacterMovement()->GravityScale = 1.f;
+
+	Cast<APlayerController>(GetController())->SetControlRotation(GetActorRotation());
+	
+	SpringArm->bUsePawnControlRotation = true; // "Re-couple" the spring arm to the controller.
+	SpringArm->SetUsingAbsoluteRotation(true); // Set the spring arm to use world-space (absolute) rotation.
 
 	bIsRunningOnWall = false;
 	CurrentWallInfo.Clear();
