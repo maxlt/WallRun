@@ -40,6 +40,8 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 
 	CurrentRunDirection = FVector::ZeroVector;
 	CurrentWallInfo = {}; // Zero-initialisation
+
+	RotSpeed = 50.f;
 }
 
 // Called when the game starts or when spawned
@@ -97,6 +99,12 @@ void ATPPlayableCharacter::Tick(float DeltaTime)
 
 	if (bIsRunningOnWall)
 	{
+		if (!CurrentRunDirection.IsZero())
+		{
+			const auto NewForwardDir = FMath::VInterpNormalRotationTo(GetActorForwardVector(), CurrentRunDirection, DeltaTime, RotSpeed);
+			SetActorRotation(FRotationMatrix::MakeFromX(NewForwardDir).Rotator());
+		}
+		
 		TickWallRunning();
 	}
 }
@@ -142,7 +150,7 @@ void ATPPlayableCharacter::BeginJump()
 		const auto ZElevation = GetActorUpVector() * GetCharacterMovement()->JumpZVelocity * 0.6f;
 		const auto LaunchVelocity = XYPlane * GetCharacterMovement()->GetMaxSpeed() + ZElevation;
 		LaunchCharacter(LaunchVelocity, false, false);
-		SetActorRotation(FRotationMatrix::MakeFromX(XYPlane).Rotator());
+		// SetActorRotation(FRotationMatrix::MakeFromX(XYPlane).Rotator());
 	}
 	else
 	{
@@ -166,9 +174,9 @@ void ATPPlayableCharacter::BeginWallRun()
 	GetCharacterMovement()->GravityScale = 0.f;
 	GetCharacterMovement()->Velocity.Z = 0.f;
 
-	SetActorRotation(FRotationMatrix::MakeFromX(CurrentRunDirection).Rotator());
+	// SetActorRotation(FRotationMatrix::MakeFromX(CurrentRunDirection).Rotator());
 	SpringArm->bUsePawnControlRotation = false; // "Decouple" the spring arm from the controller.
-	SpringArm->SetUsingAbsoluteRotation(false); // We want the spring arm to use its component's relative rotation.
+	// SpringArm->SetUsingAbsoluteRotation(false); // We want the spring arm to use its component's relative rotation.
 	
 	bIsRunningOnWall = true;
 
@@ -185,7 +193,7 @@ void ATPPlayableCharacter::BeginWallRun()
 
 void ATPPlayableCharacter::EndWallRun()
 {
-	GetCharacterMovement()->GravityScale = 1.f;
+	GetCharacterMovement()->GravityScale = GetDefault<UCharacterMovementComponent>()->GravityScale;
 
 	Cast<APlayerController>(GetController())->SetControlRotation(GetActorRotation());
 	

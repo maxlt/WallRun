@@ -38,6 +38,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="45.0", ClampMax="90.0"))
 	float MaxFacingAngle;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="5.0"))
+	float RotSpeed;
 
 public:
 	// Sets default values for this character's properties
