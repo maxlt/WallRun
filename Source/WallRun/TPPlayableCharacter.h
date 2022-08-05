@@ -33,14 +33,23 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components (C++)")
 	class USpringArmComponent* SpringArm;
 
+	// The minimum acceptable angle from the wall normal to the character's forward vector.
+	// If the actual angle is smaller than this value, then wall run will not succeed.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="0.0", ClampMax="45.0"))
 	float MinFacingAngle;
 
+	// The maximum acceptable angle from the wall normal to the character's forward vector.
+	// If the actual angle is larger than this value, then wall run will not succeed.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="45.0", ClampMax="90.0"))
 	float MaxFacingAngle;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="5.0"))
-	float RotSpeed;
+	// The angle between the running direction and the projected launch direction (projected on the horizontal plane.)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="0.0", ClampMax="90.0"))
+	float HPlaneLaunchAngle;
+
+	// Elevation angle between the horizontal plane and the launch direction.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="0.0", ClampMax="90.0"))
+	float ZElevationLaunchAngle;
 
 public:
 	// Sets default values for this character's properties
@@ -54,7 +63,7 @@ protected:
 	void OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 	UFUNCTION()
-	void ResetSomething(const FHitResult& Hit);
+	void HandleOnLanded(const FHitResult& Hit);
 
 public:
 	// Called every frame
@@ -70,23 +79,21 @@ private:
 	void BeginJump();
 	void EndJump();
 
-	bool IsMovingForward() const;
-
 	void BeginWallRun();
 	void EndWallRun();
 
-	// Checks whether the wall is still present while wall running, or stamina runs out, etc.
+	// Runs at every tick; the "heart" that enforces wall running.
 	void TickWallRunning();
 
 private:
+	// True if this character's running on a wall. False, otherwise.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Running (C++)", meta = (AllowPrivateAccess="true"))
 	bool bIsRunningOnWall;
-
-	float ForwardInputAxis;
 
 	FRunOnWallInfo CurrentWallInfo;
 	FVector CurrentRunDirection;
 	FTimerHandle RunningTimer;
 
+	// The direction this character *should* be facing. This isn't the same as the character's actual facing direction.
 	FVector DesiredFacingDirection;
 };

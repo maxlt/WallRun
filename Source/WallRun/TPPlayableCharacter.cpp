@@ -41,9 +41,9 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	CurrentRunDirection = FVector::ZeroVector;
 	CurrentWallInfo = {}; // Zero-initialisation
 
-	RotSpeed = 50.f;
-
 	DesiredFacingDirection = FVector::ZeroVector;
+	HPlaneLaunchAngle = 45.f;
+	ZElevationLaunchAngle = 75.f;
 }
 
 // Called when the game starts or when spawned
@@ -52,7 +52,7 @@ void ATPPlayableCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &ATPPlayableCharacter::OnCollided);
-	LandedDelegate.AddDynamic(this, &ATPPlayableCharacter::ResetSomething);
+	LandedDelegate.AddDynamic(this, &ATPPlayableCharacter::HandleOnLanded);
 }
 
 void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
@@ -68,7 +68,7 @@ void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor*
 			return;
 		}
 
-		// When the character made a jump from the ground towards a wall.
+		// When the character made a jump from the ground and towards a wall.
 		// TODO Use a better method than using a "Wall" tag.
  		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Hit.Actor->ActorHasTag("Wall"))
 		{
@@ -95,8 +95,9 @@ void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor*
 	}
 }
 
-void ATPPlayableCharacter::ResetSomething(const FHitResult&)
+void ATPPlayableCharacter::HandleOnLanded(const FHitResult&)
 {
+	// When this character lands from wall running, we reset some states.
 	DesiredFacingDirection = FVector::ZeroVector;
 	GetController()->SetIgnoreMoveInput(false);
 }
@@ -113,8 +114,9 @@ void ATPPlayableCharacter::Tick(float DeltaTime)
 
 	if (!DesiredFacingDirection.IsZero())
 	{
-		const auto NewDir = FMath::VInterpNormalRotationTo(GetActorForwardVector(), DesiredFacingDirection, DeltaTime, RotSpeed);
-		SetActorRotation(FRotationMatrix::MakeFromX(NewDir).Rotator());
+		// We smoothly rotate the character as soon as wall running begins and when the character "jumps off" the wall.
+		const auto InterpDir = FMath::VInterpNormalRotationTo(GetActorForwardVector(), DesiredFacingDirection, DeltaTime, 360.f);
+		SetActorRotation(FRotationMatrix::MakeFromX(InterpDir).Rotator());
 	}
 }
 
@@ -154,16 +156,23 @@ void ATPPlayableCharacter::BeginJump()
 {
 	if (bIsRunningOnWall)
 	{
-		// TODO We should parameterise the angles of the launch direction.
-		const auto XYPlane = (CurrentRunDirection * 0.25f + CurrentWallInfo.WallNormal).GetSafeNormal();
-		const auto ZElevation = GetActorUpVector() * GetCharacterMovement()->JumpZVelocity * 0.6f;
-		const auto LaunchVelocity = XYPlane * GetCharacterMovement()->GetMaxSpeed() + ZElevation;
+		// We launch the character when a jump is called while wall running. Launching this way gives us a control over its "jump" direction.
+		const auto HPlaneLaunchDir = CurrentRunDirection * FMath::Cos(FMath::DegreesToRadians(HPlaneLaunchAngle))
+			+ CurrentWallInfo.WallNormal * FMath::Sin(FMath::DegreesToRadians(HPlaneLaunchAngle));
+		check(HPlaneLaunchDir.IsNormalized());
+		
+		const auto ZElevationLaunchDir = GetActorUpVector() * FMath::Sin(FMath::DegreesToRadians(ZElevationLaunchAngle));
+		
+		const auto LaunchVelocity =
+			HPlaneLaunchDir * FMath::Cos(FMath::DegreesToRadians(ZElevationLaunchAngle)) * GetCharacterMovement()->GetMaxSpeed()
+			+ ZElevationLaunchDir * GetCharacterMovement()->JumpZVelocity;
+		
 		LaunchCharacter(LaunchVelocity, false, false);
-		DesiredFacingDirection = XYPlane;
+		DesiredFacingDirection = HPlaneLaunchDir;
 	}
 	else
 	{
-		Jump(); // Note: ACharacter will internally check if this character *is able to* jump.
+		Jump(); // ACharacter will internally check if this character *is able to* jump.
 	}
 }
 
@@ -172,13 +181,9 @@ void ATPPlayableCharacter::EndJump()
 	StopJumping();
 }
 
-bool ATPPlayableCharacter::IsMovingForward() const
-{
-	return ForwardInputAxis > 0.f;
-}
-
 void ATPPlayableCharacter::BeginWallRun()
 {
+	// We set zero-gravity so that the character can "float" along the wall.
 	GetCharacterMovement()->GravityScale = 0.f;
 	GetCharacterMovement()->Velocity.Z = 0.f;
 
@@ -208,21 +213,22 @@ void ATPPlayableCharacter::EndWallRun()
 
 void ATPPlayableCharacter::TickWallRunning()
 {
-	// We check if the character's still "touching" the same wall.
-	// If it no longer does, stop wall running.
 	if (CurrentWallInfo.Wall.IsValid())
 	{
-		const float Scale = GetCapsuleComponent()->GetUnscaledCapsuleRadius() + 2.f;
-		const FVector TraceLineEnd = GetActorLocation() - CurrentWallInfo.WallNormal * Scale;
+		// The extra 2.0 extends the trace line beyond the capsule radius so that the trace can hit-test a wall.
+		const float Extend = GetCapsuleComponent()->GetUnscaledCapsuleRadius() + 2.f;
+		const FVector TraceLineEnd = GetActorLocation() - CurrentWallInfo.WallNormal * Extend;
 		
 		FCollisionQueryParams CollParams;
 		CollParams.AddIgnoredActor(this);
 
 		FHitResult WallTestResult;
-		
+
+		// We check if the character still "touches" the same wall. If it no longer does, or if there's no wall to "touch", we stop wall running.
 		if (CurrentWallInfo.Wall->ActorLineTraceSingle(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams)
 			&& (WallTestResult.Actor == CurrentWallInfo.Wall))
 		{
+			// As long as the character still does, we enforces its velocity.
 			GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
 			GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
 		}
