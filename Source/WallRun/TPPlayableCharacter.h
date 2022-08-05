@@ -53,6 +53,9 @@ protected:
 	UFUNCTION()
 	void OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
+	UFUNCTION()
+	void ResetSomething(const FHitResult& Hit);
+
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -84,4 +87,6 @@ private:
 	FRunOnWallInfo CurrentWallInfo;
 	FVector CurrentRunDirection;
 	FTimerHandle RunningTimer;
+
+	FVector DesiredFacingDirection;
 };

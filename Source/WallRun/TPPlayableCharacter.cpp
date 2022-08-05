@@ -42,6 +42,8 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	CurrentWallInfo = {}; // Zero-initialisation
 
 	RotSpeed = 50.f;
+
+	DesiredFacingDirection = FVector::ZeroVector;
 }
 
 // Called when the game starts or when spawned
@@ -50,6 +52,7 @@ void ATPPlayableCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &ATPPlayableCharacter::OnCollided);
+	LandedDelegate.AddDynamic(this, &ATPPlayableCharacter::ResetSomething);
 }
 
 void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
@@ -92,6 +95,12 @@ void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor*
 	}
 }
 
+void ATPPlayableCharacter::ResetSomething(const FHitResult&)
+{
+	DesiredFacingDirection = FVector::ZeroVector;
+	GetController()->SetIgnoreMoveInput(false);
+}
+
 // Called every frame
 void ATPPlayableCharacter::Tick(float DeltaTime)
 {
@@ -99,13 +108,13 @@ void ATPPlayableCharacter::Tick(float DeltaTime)
 
 	if (bIsRunningOnWall)
 	{
-		if (!CurrentRunDirection.IsZero())
-		{
-			const auto NewForwardDir = FMath::VInterpNormalRotationTo(GetActorForwardVector(), CurrentRunDirection, DeltaTime, RotSpeed);
-			SetActorRotation(FRotationMatrix::MakeFromX(NewForwardDir).Rotator());
-		}
-		
 		TickWallRunning();
+	}
+
+	if (!DesiredFacingDirection.IsZero())
+	{
+		const auto NewDir = FMath::VInterpNormalRotationTo(GetActorForwardVector(), DesiredFacingDirection, DeltaTime, RotSpeed);
+		SetActorRotation(FRotationMatrix::MakeFromX(NewDir).Rotator());
 	}
 }
 
@@ -150,7 +159,7 @@ void ATPPlayableCharacter::BeginJump()
 		const auto ZElevation = GetActorUpVector() * GetCharacterMovement()->JumpZVelocity * 0.6f;
 		const auto LaunchVelocity = XYPlane * GetCharacterMovement()->GetMaxSpeed() + ZElevation;
 		LaunchCharacter(LaunchVelocity, false, false);
-		// SetActorRotation(FRotationMatrix::MakeFromX(XYPlane).Rotator());
+		DesiredFacingDirection = XYPlane;
 	}
 	else
 	{
@@ -170,19 +179,15 @@ bool ATPPlayableCharacter::IsMovingForward() const
 
 void ATPPlayableCharacter::BeginWallRun()
 {
-	// TODO We should also freeze the player's camera view and position it behind the character.
 	GetCharacterMovement()->GravityScale = 0.f;
 	GetCharacterMovement()->Velocity.Z = 0.f;
 
-	// SetActorRotation(FRotationMatrix::MakeFromX(CurrentRunDirection).Rotator());
-	SpringArm->bUsePawnControlRotation = false; // "Decouple" the spring arm from the controller.
-	// SpringArm->SetUsingAbsoluteRotation(false); // We want the spring arm to use its component's relative rotation.
-	
+	DesiredFacingDirection = CurrentRunDirection;
+
 	bIsRunningOnWall = true;
 
 	GetController()->SetIgnoreMoveInput(true);
 	ConsumeMovementInputVector();
-
 
 	GetWorldTimerManager().SetTimer(RunningTimer, [this]()->void
 	{
@@ -195,16 +200,9 @@ void ATPPlayableCharacter::EndWallRun()
 {
 	GetCharacterMovement()->GravityScale = GetDefault<UCharacterMovementComponent>()->GravityScale;
 
-	Cast<APlayerController>(GetController())->SetControlRotation(GetActorRotation());
-	
-	SpringArm->bUsePawnControlRotation = true; // "Re-couple" the spring arm to the controller.
-	SpringArm->SetUsingAbsoluteRotation(true); // Set the spring arm to use world-space (absolute) rotation.
-
 	bIsRunningOnWall = false;
 	CurrentWallInfo.Clear();
 
-	// TODO We should unfreeze the player's camera.
-	GetController()->SetIgnoreMoveInput(false);
 	GetWorldTimerManager().ClearTimer(RunningTimer);
 }
 
@@ -225,8 +223,6 @@ void ATPPlayableCharacter::TickWallRunning()
 		if (CurrentWallInfo.Wall->ActorLineTraceSingle(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams)
 			&& (WallTestResult.Actor == CurrentWallInfo.Wall))
 		{
-			// UE_LOG(LogTemp, Log, TEXT("Update: %s is still touching the same wall %s"), *GetName(), *(CurrentWallInfo.Wall->GetName()));
-
 			GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
 			GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
 		}
