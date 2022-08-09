@@ -6,21 +6,6 @@
 #include "GameFramework/Character.h"
 #include "TPPlayableCharacter.generated.h"
 
-USTRUCT(BlueprintType)
-struct FRunOnWallInfo
-{
-	GENERATED_BODY()
-
-	TWeakObjectPtr<class AActor> Wall;
-	FVector WallNormal; // Normal on the side of the wall the player is running on.
-
-	FORCEINLINE void Clear()
-	{
-		Wall.Reset();
-		WallNormal = FVector::ZeroVector;
-	}
-};
-
 UCLASS()
 class WALLRUN_API ATPPlayableCharacter : public ACharacter
 {
@@ -90,7 +75,6 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Running (C++)", meta = (AllowPrivateAccess="true"))
 	bool bIsRunningOnWall;
 
-	FRunOnWallInfo CurrentWallInfo;
 	FVector CurrentRunDirection;
 	FTimerHandle RunningTimer;
 

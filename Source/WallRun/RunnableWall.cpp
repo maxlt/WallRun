@@ -18,6 +18,11 @@ void ARunnableWall::BeginPlay()
 
 bool ARunnableWall::IsOnFacingSide(const FVector& Direction) const
 {
-	const auto temp = Direction | GetActorForwardVector();
-	return temp <= -1.f && temp > 0.f;
+	const auto temp = Direction | FacingSide();
+	return temp >= -1.f && temp < 0.f;
+}
+
+FVector ARunnableWall::FacingSide() const
+{
+	return GetActorForwardVector();
 }

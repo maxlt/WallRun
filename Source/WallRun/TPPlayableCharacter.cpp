@@ -3,6 +3,7 @@
 #include "TPPlayableCharacter.h"
 
 #include "DrawDebugHelpers.h"
+#include "RunnableWall.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -33,17 +34,17 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	GetCharacterMovement()->JumpZVelocity = 600.f;
 
 	bIsRunningOnWall = false;
-	// ForwardInputAxis = 0.f;
 
 	MinFacingAngle = 5.f; // 5 degree.
 	MaxFacingAngle = 80.f; // 80 degree.
 
 	CurrentRunDirection = FVector::ZeroVector;
-	CurrentWallInfo = {}; // Zero-initialisation
 
 	DesiredFacingDirection = FVector::ZeroVector;
 	HPlaneLaunchAngle = 45.f;
 	ZElevationLaunchAngle = 75.f;
+
+	Wall = nullptr;
 }
 
 // Called when the game starts or when spawned
@@ -57,26 +58,29 @@ void ATPPlayableCharacter::BeginPlay()
 
 void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	if (Hit.bBlockingHit && Hit.Actor.IsValid())
+	if (Hit.bBlockingHit && OtherActor)
 	{
 		DrawDebugDirectionalArrow(GetWorld(), Hit.ImpactPoint, Hit.ImpactPoint + Hit.ImpactNormal * 30.f, 4.f, FColor::Yellow, false, 10.f, 0, 1.f);
 
-		if (bIsRunningOnWall && (Hit.Actor != CurrentWallInfo.Wall))
+		if (bIsRunningOnWall && (OtherActor != Wall))
 		{
 			// If the character, while wall running, runs into anything else besides the current wall, stop wall running.
 			EndWallRun();
 			return;
 		}
 
+		Wall = Cast<ARunnableWall>(OtherActor);
+		
 		// When the character made a jump from the ground and towards a wall.
-		// TODO Use a better method than using a "Wall" tag.
- 		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Hit.Actor->ActorHasTag("Wall"))
+ 		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Wall && Wall->IsOnFacingSide(GetActorForwardVector()))
 		{
 			const auto FacingAngle = GetActorForwardVector() | -Hit.ImpactNormal;
 			UE_LOG(LogTemp, Log, TEXT("Facing Angle From Wall Normal = %f"), FMath::RadiansToDegrees(FMath::Acos(FacingAngle)));
+ 			
 			const auto MaxDotProduct = FMath::Cos(FMath::DegreesToRadians(MinFacingAngle));
 			const auto MinDotProduct = FMath::Cos(FMath::DegreesToRadians(MaxFacingAngle));
-			// Be careful with the following inequalities. Due to the inversion of cosine, you wouldn't want to mess with the conditional. 
+ 			
+			// Be careful with the following conditional. Due to the inversion of inequalities caused by cosine, you wouldn't want to mess with it. 
 			if (FacingAngle > MinDotProduct && FacingAngle < MaxDotProduct)
 			{
 				UE_LOG(LogTemp, Log, TEXT("We begin Wall Running."));
@@ -84,8 +88,6 @@ void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor*
 				const auto ZDir = GetActorForwardVector() ^ Hit.ImpactNormal;
 				const auto RunningDir = (Hit.ImpactNormal ^ ZDir).GetSafeNormal();
 				CurrentRunDirection = RunningDir;
-				CurrentWallInfo.Wall = Hit.Actor;
-				CurrentWallInfo.WallNormal = Hit.ImpactNormal.GetSafeNormal();
 
 				DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + RunningDir * 100.f, 10.f, FColor::Magenta, false, 30.f, 0, 2.f);
 
@@ -136,8 +138,6 @@ void ATPPlayableCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 void ATPPlayableCharacter::MoveForward(float Axis)
 {
-	// ForwardInputAxis = Axis;
-
 	const auto ViewRot = GetViewRotation();
 	const auto YawOnlyViewRot = FRotator(0.f, ViewRot.Yaw, 0.f);
 	const auto FacingViewDir = YawOnlyViewRot.Vector();
@@ -154,11 +154,11 @@ void ATPPlayableCharacter::MoveRight(float Axis)
 
 void ATPPlayableCharacter::BeginJump()
 {
-	if (bIsRunningOnWall)
+	if (bIsRunningOnWall && Wall)
 	{
 		// We launch the character when a jump is called while wall running. Launching this way gives us a control over its "jump" direction.
 		const auto HPlaneLaunchDir = CurrentRunDirection * FMath::Cos(FMath::DegreesToRadians(HPlaneLaunchAngle))
-			+ CurrentWallInfo.WallNormal * FMath::Sin(FMath::DegreesToRadians(HPlaneLaunchAngle));
+			+ Wall->FacingSide() * FMath::Sin(FMath::DegreesToRadians(HPlaneLaunchAngle));
 		check(HPlaneLaunchDir.IsNormalized());
 		
 		const auto ZElevationLaunchDir = GetActorUpVector() * FMath::Sin(FMath::DegreesToRadians(ZElevationLaunchAngle));
@@ -206,27 +206,27 @@ void ATPPlayableCharacter::EndWallRun()
 	GetCharacterMovement()->GravityScale = GetDefault<UCharacterMovementComponent>()->GravityScale;
 
 	bIsRunningOnWall = false;
-	CurrentWallInfo.Clear();
-
+	Wall = nullptr;
+	
 	GetWorldTimerManager().ClearTimer(RunningTimer);
 }
 
 void ATPPlayableCharacter::TickWallRunning()
 {
-	if (CurrentWallInfo.Wall.IsValid())
+	if (Wall)
 	{
 		// The extra 2.0 extends the trace line beyond the capsule radius so that the trace can hit-test a wall.
 		const float Extend = GetCapsuleComponent()->GetUnscaledCapsuleRadius() + 2.f;
-		const FVector TraceLineEnd = GetActorLocation() - CurrentWallInfo.WallNormal * Extend;
-		
+		const FVector TraceLineEnd = GetActorLocation() - Wall->FacingSide() * Extend;
+
 		FCollisionQueryParams CollParams;
 		CollParams.AddIgnoredActor(this);
 
 		FHitResult WallTestResult;
 
 		// We check if the character still "touches" the same wall. If it no longer does, or if there's no wall to "touch", we stop wall running.
-		if (CurrentWallInfo.Wall->ActorLineTraceSingle(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams)
-			&& (WallTestResult.Actor == CurrentWallInfo.Wall))
+		if (Wall->ActorLineTraceSingle(WallTestResult, GetActorLocation(), TraceLineEnd, ECC_Visibility, CollParams)
+			&& (WallTestResult.GetActor() == Wall))
 		{
 			// As long as the character still does, we enforces its velocity.
 			GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
@@ -234,7 +234,7 @@ void ATPPlayableCharacter::TickWallRunning()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Log, TEXT("Update: We hit something else besides wall %s"), *(CurrentWallInfo.Wall->GetName()));
+			UE_LOG(LogTemp, Log, TEXT("Update: We hit something else besides wall %s"), *(Wall->GetName()));
 			EndWallRun();
 		}
 	}
