@@ -33,7 +33,7 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	GetCharacterMovement()->JumpZVelocity = 600.f;
 
 	bIsRunningOnWall = false;
-	ForwardInputAxis = 0.f;
+	// ForwardInputAxis = 0.f;
 
 	MinFacingAngle = 5.f; // 5 degree.
 	MaxFacingAngle = 80.f; // 80 degree.
@@ -115,7 +115,7 @@ void ATPPlayableCharacter::Tick(float DeltaTime)
 	if (!DesiredFacingDirection.IsZero())
 	{
 		// We smoothly rotate the character as soon as wall running begins and when the character "jumps off" the wall.
-		const auto InterpDir = FMath::VInterpNormalRotationTo(GetActorForwardVector(), DesiredFacingDirection, DeltaTime, 360.f);
+		const auto InterpDir = FMath::VInterpNormalRotationTo(GetActorForwardVector(), DesiredFacingDirection, DeltaTime, 500.f);
 		SetActorRotation(FRotationMatrix::MakeFromX(InterpDir).Rotator());
 	}
 }
@@ -136,7 +136,7 @@ void ATPPlayableCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 
 void ATPPlayableCharacter::MoveForward(float Axis)
 {
-	ForwardInputAxis = Axis;
+	// ForwardInputAxis = Axis;
 
 	const auto ViewRot = GetViewRotation();
 	const auto YawOnlyViewRot = FRotator(0.f, ViewRot.Yaw, 0.f);

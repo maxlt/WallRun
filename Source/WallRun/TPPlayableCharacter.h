@@ -96,4 +96,6 @@ private:
 
 	// The direction this character *should* be facing. This isn't the same as the character's actual facing direction.
 	FVector DesiredFacingDirection;
+
+	class ARunnableWall* Wall;
 };
