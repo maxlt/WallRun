@@ -31,16 +31,17 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	bUseControllerRotationYaw = false;
 
 	GetCharacterMovement()->bOrientRotationToMovement = true;
-	GetCharacterMovement()->JumpZVelocity = 600.f;
 
 	bIsRunningOnWall = false;
 
-	MinFacingAngle = 5.f; // 5 degree.
-	MaxFacingAngle = 80.f; // 80 degree.
+	MinFacingAngle = 5.f;
+	MaxFacingAngle = 80.f;
+	
+	MaxDistance = GetDefault<UCharacterMovementComponent>()->MaxWalkSpeed;
 
 	CurrentRunDirection = FVector::ZeroVector;
-
 	DesiredFacingDirection = FVector::ZeroVector;
+
 	HPlaneLaunchAngle = 45.f;
 	ZElevationLaunchAngle = 75.f;
 
@@ -101,7 +102,9 @@ void ATPPlayableCharacter::HandleOnLanded(const FHitResult&)
 {
 	// When this character lands from wall running, we reset some states.
 	DesiredFacingDirection = FVector::ZeroVector;
-	GetController()->SetIgnoreMoveInput(false);
+	// Best to call this specific function since SetIgnoreMoveInput may have been called more than once if the character jumps
+	// from wall to wall.
+	GetController()->ResetIgnoreMoveInput();
 }
 
 // Called every frame
@@ -194,11 +197,13 @@ void ATPPlayableCharacter::BeginWallRun()
 	GetController()->SetIgnoreMoveInput(true);
 	ConsumeMovementInputVector();
 
+	check(GetCharacterMovement()->GetMaxSpeed() != 0.f);
+	const auto TriggerDelay = MaxDistance/GetCharacterMovement()->GetMaxSpeed();
 	GetWorldTimerManager().SetTimer(RunningTimer, [this]()->void
 	{
-		UE_LOG(LogTemp, Log, TEXT("Enable 25%% Gravity"));
+		UE_LOG(LogTemp, Log, TEXT("Set 25%% Gravity"));
 		GetCharacterMovement()->GravityScale = 0.25f;
-	}, 1.5f, false);
+	}, TriggerDelay, false);
 }
 
 void ATPPlayableCharacter::EndWallRun()

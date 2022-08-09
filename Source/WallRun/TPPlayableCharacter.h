@@ -36,6 +36,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="0.0", ClampMax="90.0"))
 	float ZElevationLaunchAngle;
 
+	// Maximum distance the character can run a straight line on the wall surface, before the gravity affects its Z-velocity.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Wall Running (C++)", meta = (ClampMin="0.0"))
+	float MaxDistance;
+
 public:
 	// Sets default values for this character's properties
 	ATPPlayableCharacter();
