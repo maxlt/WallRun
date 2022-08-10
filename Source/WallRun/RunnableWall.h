@@ -15,17 +15,12 @@ public:
 	// Sets default values for this actor's properties
 	ARunnableWall();
 
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
-public:
-	// Returns true if the Direction (world-space) points at the facing side, i.e. local X-axis, of the wall.
+	// Returns true if the Direction (world-space) points at the facing side of the wall.
 	// Facing it at 90deg or beyond will return false.
 	UFUNCTION(BlueprintCallable, Category = "Wall Running (C++)")
 	bool IsOnFacingSide(const FVector& Direction) const;
 
-	// Returns the world-space direction that is the facing side of the wall, i.e. local X-axis.
+	// Returns the world-space direction that is the facing side of the wall, typically local X-axis.
 	UFUNCTION(BlueprintCallable, Category = "Wall Running (C++)")
 	virtual FVector FacingSide() const;
 };

@@ -10,16 +10,10 @@ ARunnableWall::ARunnableWall()
 	PrimaryActorTick.bCanEverTick = false;
 }
 
-// Called when the game starts or when spawned
-void ARunnableWall::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
 bool ARunnableWall::IsOnFacingSide(const FVector& Direction) const
 {
-	const auto temp = Direction | FacingSide();
-	return temp >= -1.f && temp < 0.f;
+	const auto DotProduct = Direction | FacingSide();
+	return DotProduct >= -1.f && DotProduct < 0.f;
 }
 
 FVector ARunnableWall::FacingSide() const

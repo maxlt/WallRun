@@ -40,7 +40,7 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	
 	MaxDistance = GetDefault<UCharacterMovementComponent>()->MaxWalkSpeed;
 
-	CurrentRunDirection = FVector::ZeroVector;
+	WallRunDirection = FVector::ZeroVector;
 	DesiredFacingDirection = FVector::ZeroVector;
 
 	HPlaneLaunchAngle = 45.f;
@@ -81,12 +81,11 @@ void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor*
 		// Be careful with the following conditional. Due to the inversion of inequalities caused by cosine, you wouldn't want to mess with it. 
 		if (FacingAngle > MinDotProduct && FacingAngle < MaxDotProduct)
 		{
-			UE_LOG(LogTemp, Log, TEXT("We begin Wall Running."));
-
 			const auto ZDir = GetActorForwardVector() ^ Hit.ImpactNormal;
 			const auto RunningDir = (Hit.ImpactNormal ^ ZDir).GetSafeNormal();
-			CurrentRunDirection = RunningDir;
+			WallRunDirection = RunningDir;
 
+			// We want to show visually the direction along the wall the character is wall running towards.
 			DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + RunningDir * 30.f, 20.f,
 				FColor::Magenta, false, 10.f, 0, 2.f);
 
@@ -161,7 +160,7 @@ void ATPPlayableCharacter::BeginJump()
 	if (bIsRunningOnWall && Wall)
 	{
 		// We launch the character when a jump is called while wall running. Launching this way gives us a control over its "jump" direction.
-		const auto HPlaneLaunchDir = CurrentRunDirection * FMath::Cos(FMath::DegreesToRadians(HPlaneLaunchAngle))
+		const auto HPlaneLaunchDir = WallRunDirection * FMath::Cos(FMath::DegreesToRadians(HPlaneLaunchAngle))
 			+ Wall->FacingSide() * FMath::Sin(FMath::DegreesToRadians(HPlaneLaunchAngle));
 		check(HPlaneLaunchDir.IsNormalized());
 		
@@ -187,11 +186,13 @@ void ATPPlayableCharacter::EndJump()
 
 void ATPPlayableCharacter::BeginWallRun()
 {
-	// We set zero-gravity so that the character can "float" along the wall.
+	UE_LOG(LogTemp, Log, TEXT("Wall Run begins."));
+
+	// We set zero-gravity so that the character can "float" at the wall.
 	GetCharacterMovement()->GravityScale = 0.f;
 	GetCharacterMovement()->Velocity.Z = 0.f;
 
-	DesiredFacingDirection = CurrentRunDirection;
+	DesiredFacingDirection = WallRunDirection;
 
 	bIsRunningOnWall = true;
 
@@ -209,6 +210,8 @@ void ATPPlayableCharacter::BeginWallRun()
 
 void ATPPlayableCharacter::EndWallRun()
 {
+	UE_LOG(LogTemp, Log, TEXT("Wall Run ends."));
+
 	GetCharacterMovement()->GravityScale = GetDefault<UCharacterMovementComponent>()->GravityScale;
 
 	bIsRunningOnWall = false;
@@ -235,12 +238,11 @@ void ATPPlayableCharacter::TickWallRunning()
 			&& (WallTestResult.GetActor() == Wall))
 		{
 			// As long as the character still does, we enforces its velocity.
-			GetCharacterMovement()->Velocity.X = CurrentRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
-			GetCharacterMovement()->Velocity.Y = CurrentRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
+			GetCharacterMovement()->Velocity.X = WallRunDirection.X * GetCharacterMovement()->GetMaxSpeed();
+			GetCharacterMovement()->Velocity.Y = WallRunDirection.Y * GetCharacterMovement()->GetMaxSpeed();
 		}
 		else
 		{
-			UE_LOG(LogTemp, Log, TEXT("Update: We hit something else besides wall %s"), *(Wall->GetName()));
 			EndWallRun();
 		}
 	}

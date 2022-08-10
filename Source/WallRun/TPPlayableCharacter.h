@@ -84,7 +84,7 @@ private:
 
 	// The direction, either left or right, along the wall when wall running.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Running (C++)", meta = (AllowPrivateAccess="true"))
-	FVector CurrentRunDirection;
+	FVector WallRunDirection;
 
 	// The timer to trigger gravity effect when the wall running distance reaches MaxDistance.
 	FTimerHandle GravitySuspendTimer;
