@@ -60,8 +60,6 @@ void ATPPlayableCharacter::BeginPlay()
 
 void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	DrawDebugDirectionalArrow(GetWorld(), Hit.ImpactPoint, Hit.ImpactPoint + Hit.ImpactNormal * 30.f, 4.f, FColor::Yellow, false, 10.f, 0, 1.f);
-
 	if (bIsRunningOnWall && OtherActor && (OtherActor != Wall))
 	{
 		// If the character, while wall running, runs into anything else besides the current wall, stop wall running.
@@ -89,7 +87,8 @@ void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor*
 			const auto RunningDir = (Hit.ImpactNormal ^ ZDir).GetSafeNormal();
 			CurrentRunDirection = RunningDir;
 
-			DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + RunningDir * 100.f, 10.f, FColor::Magenta, false, 30.f, 0, 2.f);
+			DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + RunningDir * 30.f, 20.f,
+				FColor::Magenta, false, 10.f, 0, 2.f);
 
 			BeginWallRun();
 			bJumped = false;
@@ -203,8 +202,8 @@ void ATPPlayableCharacter::BeginWallRun()
 	const auto TriggerDelay = MaxDistance/GetCharacterMovement()->GetMaxSpeed();
 	GetWorldTimerManager().SetTimer(GravitySuspendTimer, [this]()->void
 	{
-		UE_LOG(LogTemp, Log, TEXT("Set 25%% Gravity"));
-		GetCharacterMovement()->GravityScale = 0.25f;
+		UE_LOG(LogTemp, Log, TEXT("Set 50%% Gravity"));
+		GetCharacterMovement()->GravityScale = 0.5f;
 	}, TriggerDelay, false);
 }
 
