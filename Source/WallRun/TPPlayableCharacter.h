@@ -83,6 +83,7 @@ private:
 	bool bJumped;
 
 	// The direction, either left or right, along the wall when wall running.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Running (C++)", meta = (AllowPrivateAccess="true"))
 	FVector CurrentRunDirection;
 
 	// The timer to trigger gravity effect when the wall running distance reaches MaxDistance.
@@ -92,5 +93,6 @@ private:
 	FVector DesiredFacingDirection;
 
 	// Current wall the character is running on.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Running (C++)", meta = (AllowPrivateAccess="true"))
 	class ARunnableWall* Wall;
 };
