@@ -33,6 +33,7 @@ ATPPlayableCharacter::ATPPlayableCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 
 	bIsRunningOnWall = false;
+	bJumped = false;
 
 	MinFacingAngle = 5.f;
 	MaxFacingAngle = 80.f;
@@ -59,41 +60,39 @@ void ATPPlayableCharacter::BeginPlay()
 
 void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	if (Hit.bBlockingHit && OtherActor)
+	DrawDebugDirectionalArrow(GetWorld(), Hit.ImpactPoint, Hit.ImpactPoint + Hit.ImpactNormal * 30.f, 4.f, FColor::Yellow, false, 10.f, 0, 1.f);
+
+	if (bIsRunningOnWall && OtherActor && (OtherActor != Wall))
 	{
-		DrawDebugDirectionalArrow(GetWorld(), Hit.ImpactPoint, Hit.ImpactPoint + Hit.ImpactNormal * 30.f, 4.f, FColor::Yellow, false, 10.f, 0, 1.f);
+		// If the character, while wall running, runs into anything else besides the current wall, stop wall running.
+		EndWallRun();
+		return;
+	}
 
-		if (bIsRunningOnWall && (OtherActor != Wall))
+	Wall = Cast<ARunnableWall>(OtherActor);
+	
+	// When the character made a jump from the ground and towards a wall.
+ 	if (!bIsRunningOnWall && bJumped && Wall && Wall->IsOnFacingSide(GetActorForwardVector()))
+	{
+		const auto FacingAngle = GetActorForwardVector() | -Hit.ImpactNormal;
+		UE_LOG(LogTemp, Log, TEXT("Facing Angle From Wall Normal = %f"), FMath::RadiansToDegrees(FMath::Acos(FacingAngle)));
+ 		
+		const auto MaxDotProduct = FMath::Cos(FMath::DegreesToRadians(MinFacingAngle));
+		const auto MinDotProduct = FMath::Cos(FMath::DegreesToRadians(MaxFacingAngle));
+ 		
+		// Be careful with the following conditional. Due to the inversion of inequalities caused by cosine, you wouldn't want to mess with it. 
+		if (FacingAngle > MinDotProduct && FacingAngle < MaxDotProduct)
 		{
-			// If the character, while wall running, runs into anything else besides the current wall, stop wall running.
-			EndWallRun();
-			return;
-		}
+			UE_LOG(LogTemp, Log, TEXT("We begin Wall Running."));
 
-		Wall = Cast<ARunnableWall>(OtherActor);
-		
-		// When the character made a jump from the ground and towards a wall.
- 		if (!bIsRunningOnWall && GetCharacterMovement()->IsFalling() && Wall && Wall->IsOnFacingSide(GetActorForwardVector()))
-		{
-			const auto FacingAngle = GetActorForwardVector() | -Hit.ImpactNormal;
-			UE_LOG(LogTemp, Log, TEXT("Facing Angle From Wall Normal = %f"), FMath::RadiansToDegrees(FMath::Acos(FacingAngle)));
- 			
-			const auto MaxDotProduct = FMath::Cos(FMath::DegreesToRadians(MinFacingAngle));
-			const auto MinDotProduct = FMath::Cos(FMath::DegreesToRadians(MaxFacingAngle));
- 			
-			// Be careful with the following conditional. Due to the inversion of inequalities caused by cosine, you wouldn't want to mess with it. 
-			if (FacingAngle > MinDotProduct && FacingAngle < MaxDotProduct)
-			{
-				UE_LOG(LogTemp, Log, TEXT("We begin Wall Running."));
+			const auto ZDir = GetActorForwardVector() ^ Hit.ImpactNormal;
+			const auto RunningDir = (Hit.ImpactNormal ^ ZDir).GetSafeNormal();
+			CurrentRunDirection = RunningDir;
 
-				const auto ZDir = GetActorForwardVector() ^ Hit.ImpactNormal;
-				const auto RunningDir = (Hit.ImpactNormal ^ ZDir).GetSafeNormal();
-				CurrentRunDirection = RunningDir;
+			DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + RunningDir * 100.f, 10.f, FColor::Magenta, false, 30.f, 0, 2.f);
 
-				DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + RunningDir * 100.f, 10.f, FColor::Magenta, false, 30.f, 0, 2.f);
-
-				BeginWallRun();
-			}
+			BeginWallRun();
+			bJumped = false;
 		}
 	}
 }
@@ -105,6 +104,7 @@ void ATPPlayableCharacter::HandleOnLanded(const FHitResult&)
 	// Best to call this specific function since SetIgnoreMoveInput may have been called more than once if the character jumps
 	// from wall to wall.
 	GetController()->ResetIgnoreMoveInput();
+	bJumped = false;
 }
 
 // Called every frame
@@ -157,6 +157,8 @@ void ATPPlayableCharacter::MoveRight(float Axis)
 
 void ATPPlayableCharacter::BeginJump()
 {
+	bJumped = true;
+	
 	if (bIsRunningOnWall && Wall)
 	{
 		// We launch the character when a jump is called while wall running. Launching this way gives us a control over its "jump" direction.
@@ -170,7 +172,7 @@ void ATPPlayableCharacter::BeginJump()
 			HPlaneLaunchDir * FMath::Cos(FMath::DegreesToRadians(ZElevationLaunchAngle)) * GetCharacterMovement()->GetMaxSpeed()
 			+ ZElevationLaunchDir * GetCharacterMovement()->JumpZVelocity;
 		
-		LaunchCharacter(LaunchVelocity, false, false);
+		LaunchCharacter(LaunchVelocity, false, true);
 		DesiredFacingDirection = HPlaneLaunchDir;
 	}
 	else
@@ -199,7 +201,7 @@ void ATPPlayableCharacter::BeginWallRun()
 
 	check(GetCharacterMovement()->GetMaxSpeed() != 0.f);
 	const auto TriggerDelay = MaxDistance/GetCharacterMovement()->GetMaxSpeed();
-	GetWorldTimerManager().SetTimer(RunningTimer, [this]()->void
+	GetWorldTimerManager().SetTimer(GravitySuspendTimer, [this]()->void
 	{
 		UE_LOG(LogTemp, Log, TEXT("Set 25%% Gravity"));
 		GetCharacterMovement()->GravityScale = 0.25f;
@@ -213,7 +215,7 @@ void ATPPlayableCharacter::EndWallRun()
 	bIsRunningOnWall = false;
 	Wall = nullptr;
 	
-	GetWorldTimerManager().ClearTimer(RunningTimer);
+	GetWorldTimerManager().ClearTimer(GravitySuspendTimer);
 }
 
 void ATPPlayableCharacter::TickWallRunning()

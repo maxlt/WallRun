@@ -79,11 +79,18 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Wall Running (C++)", meta = (AllowPrivateAccess="true"))
 	bool bIsRunningOnWall;
 
+	// Indicates the character has made a jump. Required to activate wall run. Check out OnCollided.
+	bool bJumped;
+
+	// The direction, either left or right, along the wall when wall running.
 	FVector CurrentRunDirection;
-	FTimerHandle RunningTimer;
+
+	// The timer to trigger gravity effect when the wall running distance reaches MaxDistance.
+	FTimerHandle GravitySuspendTimer;
 
 	// The direction this character *should* be facing. This isn't the same as the character's actual facing direction.
 	FVector DesiredFacingDirection;
 
+	// Current wall the character is running on.
 	class ARunnableWall* Wall;
 };
