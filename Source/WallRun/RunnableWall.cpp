@@ -10,10 +10,10 @@ ARunnableWall::ARunnableWall()
 	PrimaryActorTick.bCanEverTick = false;
 }
 
-bool ARunnableWall::IsOnFacingSide(const FVector& Direction) const
+bool ARunnableWall::IsOnFacingSide(const FVector& HitImpact, const FVector& HitNormal) const
 {
-	const auto DotProduct = Direction | FacingSide();
-	return DotProduct >= -1.f && DotProduct < 0.f;
+	const auto DotProduct = HitNormal | FacingSide();
+	return FMath::IsNearlyEqual(DotProduct, 1.f, 0.001f);
 }
 
 FVector ARunnableWall::FacingSide() const

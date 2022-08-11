@@ -15,10 +15,9 @@ public:
 	// Sets default values for this actor's properties
 	ARunnableWall();
 
-	// Returns true if the Direction (world-space) points at the facing side of the wall.
-	// Facing it at 90deg or beyond will return false.
+	// Returns true if the hit impact is on the facing side of the wall.
 	UFUNCTION(BlueprintCallable, Category = "Wall Running (C++)")
-	bool IsOnFacingSide(const FVector& Direction) const;
+	bool IsOnFacingSide(const FVector& HitImpact, const FVector& HitNormal) const;
 
 	// Returns the world-space direction that is the facing side of the wall, typically local X-axis.
 	UFUNCTION(BlueprintCallable, Category = "Wall Running (C++)")

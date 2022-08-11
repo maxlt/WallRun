@@ -70,7 +70,7 @@ void ATPPlayableCharacter::OnCollided(UPrimitiveComponent* HitComponent, AActor*
 	Wall = Cast<ARunnableWall>(OtherActor);
 	
 	// When the character made a jump from the ground and towards a wall.
- 	if (!bIsRunningOnWall && bJumped && Wall && Wall->IsOnFacingSide(GetActorForwardVector()))
+ 	if (!bIsRunningOnWall && bJumped && Wall && Wall->IsOnFacingSide(Hit.ImpactPoint, Hit.ImpactNormal))
 	{
 		const auto FacingAngle = GetActorForwardVector() | -Hit.ImpactNormal;
 		UE_LOG(LogTemp, Log, TEXT("Facing Angle From Wall Normal = %f"), FMath::RadiansToDegrees(FMath::Acos(FacingAngle)));
