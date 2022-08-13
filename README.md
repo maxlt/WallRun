@@ -1,5 +1,5 @@
 # Jedi Fallen Order-style Wall Run
-A gameplay portfolio showcasing an implementation of the Wall Run mechanic, based on the Jedi Faller Order video game. You can watch the demo in the following link [[TODO]].
+A gameplay portfolio showcasing an implementation of the Wall Run mechanic, based on the Jedi Faller Order video game. You can watch the demo in the following link [here](https://youtu.be/c_UriZWV9Co).
 
 ## Instruction Guides
 This project is made with Unreal Engine 4.27.
